@@ -21,3 +21,4 @@ postgres_data/
 
 # OS
 .DS_Store
+data/raw/retail_transactions_denormalized.csv
