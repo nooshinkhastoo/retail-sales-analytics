@@ -1,36 +1,32 @@
 from pathlib import Path
+
 import pandas as pd
 
+from config import RAW_INPUT_PATH
 
-def extract_data(file_path):
+
+def extract_data():
     """
-    Read raw CSV file and return pandas DataFrame.
+    Read the raw retail transaction CSV file.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Raw transaction data.
     """
 
-    path = Path(file_path)
+    if not RAW_INPUT_PATH.exists():
+        raise FileNotFoundError(
+            f"Raw input file not found: {RAW_INPUT_PATH}"
+        )
 
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {file_path}")
+    print("Reading raw data...")
+    print(f"Input file: {RAW_INPUT_PATH}")
 
-    df = pd.read_csv(path)
+    df = pd.read_csv(RAW_INPUT_PATH)
 
-    print("Data extracted successfully")
-    print(f"Rows: {df.shape[0]}")
-    print(f"Columns: {df.shape[1]}")
+    print(
+        f"Raw data loaded: {len(df):,} rows"
+    )
 
     return df
-
-
-def profile_data(df):
-    """
-    Basic data profiling.
-    """
-
-    print("\nMissing values:")
-    print(df.isnull().sum())
-
-    print("\nDuplicate rows:")
-    print(df.duplicated().sum())
-
-    print("\nData types:")
-    print(df.dtypes)

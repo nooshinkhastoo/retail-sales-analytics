@@ -21,4 +21,13 @@ postgres_data/
 
 # OS
 .DS_Store
+
+# Raw source data
 data/raw/retail_transactions_denormalized.csv
+
+# Generated processed data
+data/processed/
+
+# Generated analytical reports
+reports/*.csv
+reports/charts/

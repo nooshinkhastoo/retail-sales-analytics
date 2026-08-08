@@ -1,20 +1,50 @@
+from pathlib import Path
+
 import os
+
 from dotenv import load_dotenv
+
+
+# ============================================================
+# Environment
+# ============================================================
 
 load_dotenv()
 
 
-POSTGRES_DB = os.getenv("POSTGRES_DB")
-POSTGRES_USER = os.getenv("POSTGRES_USER")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+# ============================================================
+# Project paths
+# ============================================================
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-DATABASE_URL = (
-    f"postgresql://{POSTGRES_USER}:"
-    f"{POSTGRES_PASSWORD}@"
-    f"{POSTGRES_HOST}:"
-    f"{POSTGRES_PORT}/"
-    f"{POSTGRES_DB}"
+RAW_INPUT_PATH = (
+    BASE_DIR
+    / "data"
+    / "raw"
+    / "retail_transactions_denormalized.csv"
+)
+
+
+PROCESSED_DIR = (
+    BASE_DIR
+    / "data"
+    / "processed"
+)
+
+
+REJECTED_DIR = (
+    PROCESSED_DIR
+    / "rejected_records"
+)
+
+
+# ============================================================
+# Database
+# ============================================================
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://admin:admin@localhost:5432/retail",
 )
