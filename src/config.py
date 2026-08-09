@@ -18,7 +18,6 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 RAW_INPUT_PATH = (
     BASE_DIR
     / "data"
@@ -26,13 +25,11 @@ RAW_INPUT_PATH = (
     / "retail_transactions_denormalized.csv"
 )
 
-
 PROCESSED_DIR = (
     BASE_DIR
     / "data"
     / "processed"
 )
-
 
 REJECTED_DIR = (
     PROCESSED_DIR
