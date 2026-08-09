@@ -2,22 +2,19 @@
 
 ## 1. Executive Summary
 
-The Retail Analytics Pipeline processed the retail transaction dataset,
-transformed the denormalized source data into a normalized analytical
-model, loaded the resulting data into PostgreSQL, performed data quality
-checks, and generated analytical reports and visualizations.
+The Retail Analytics Pipeline transformed the retail transaction
+dataset into a normalized analytical model, loaded the resulting
+data into PostgreSQL, performed data-quality checks, and generated
+analytical reports and visualizations.
 
-The pipeline processed **1,000,000 raw transaction rows** and produced
-**997,464 valid sales records** after transformation
-and data cleaning.
+The analytical database currently contains:
 
-The resulting analytical database contains:
-
+- **997,464 sales transactions**
 - **50,000 customers**
 - **500 products**
-- **40 categories**
+- **20 categories**
 - **40 branches**
-- **974,559 inventory snapshots**
+- **976,946 inventory snapshots**
 
 ---
 
@@ -34,9 +31,9 @@ The resulting analytical database contains:
 | Average order value | $1,139.07 |
 | Customers | 50,000 |
 | Products | 500 |
-| Categories | 40 |
+| Categories | 20 |
 | Branches | 40 |
-| Inventory snapshots | 974,559 |
+| Inventory snapshots | 976,946 |
 
 ---
 
@@ -105,14 +102,14 @@ generating **$31,869,131.12** in revenue.
 | --- | --- | --- | ---: |
 | North Branch 31 | Tehran | store | $31,869,131.12 |
 | Bazaar Branch 23 | Rasht | mobile | $31,776,770.79 |
-| Express Branch 36 | TEHRAN | store | $31,733,558.15 |
+| Express Branch 36 | Tehran | store | $31,733,558.15 |
 | Central Branch 1 | Rasht | online | $31,710,719.74 |
 | North Branch 16 | Rasht | online | $31,707,600.94 |
-| Central Branch 32 | shiraz | partner | $31,641,302.62 |
+| Central Branch 32 | Shiraz | partner | $31,641,302.62 |
 | Airport Branch 30 | Mashhad | mobile | $31,613,062.02 |
-| Outlet Branch 40 | tehran | online | $31,595,681.42 |
-| Express Branch 34 | isfahan | partner | $31,566,311.70 |
-| Central Branch 11 | TEHRAN | partner | $31,546,003.43 |
+| Outlet Branch 40 | Tehran | online | $31,595,681.42 |
+| Express Branch 34 | Isfahan | partner | $31,566,311.70 |
+| Central Branch 11 | Tehran | partner | $31,546,003.43 |
 
 ---
 
@@ -150,36 +147,60 @@ across **34 transactions**.
 ## 8. Inventory Risk
 
 The inventory analysis identified
-**1,881 inventory records**
+**1,882 inventory records**
 marked as having stockout risk.
+
+The branch with the highest number of stockout-risk products is
+**Express Branch 34**, with
+**67 stockout-risk products**.
 
 Products at or below their reorder level should be reviewed
 for replenishment.
 
-### Stockout Risk Results
+### Stockout Risk by Branch
 
-| Product | Details |
-| --- | --- |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
-| N/A | At-risk inventory record |
+| Branch | Stockout-Risk Products |
+| --- | ---: |
+| Express Branch 34 | 67 |
+| West Branch 8 | 62 |
+| South Branch 9 | 57 |
+| Airport Branch 30 | 56 |
+| Bazaar Branch 4 | 54 |
+| Central Branch 7 | 54 |
+| North Branch 20 | 53 |
+| Outlet Branch 15 | 51 |
+| East Branch 38 | 51 |
+| South Branch 5 | 50 |
+| Express Branch 17 | 50 |
+| North Branch 29 | 50 |
+| Central Branch 11 | 49 |
+| North Branch 31 | 49 |
+| Bazaar Branch 37 | 49 |
+| Outlet Branch 24 | 48 |
+| Central Branch 26 | 48 |
+| South Branch 33 | 48 |
+| North Branch 6 | 47 |
+| Bazaar Branch 14 | 47 |
+| Outlet Branch 22 | 47 |
+| Central Branch 1 | 46 |
+| Mall Branch 2 | 46 |
+| North Branch 16 | 45 |
+| Bazaar Branch 25 | 44 |
+| Express Branch 36 | 44 |
+| Bazaar Branch 3 | 43 |
+| Bazaar Branch 19 | 43 |
+| Express Branch 27 | 43 |
+| Central Branch 32 | 43 |
+| Express Branch 28 | 42 |
+| Outlet Branch 40 | 42 |
+| Airport Branch 21 | 41 |
+| South Branch 12 | 40 |
+| Outlet Branch 13 | 40 |
+| Bazaar Branch 23 | 40 |
+| Mall Branch 35 | 40 |
+| North Branch 18 | 38 |
+| Mall Branch 39 | 38 |
+| Central Branch 10 | 37 |
 
 ---
 
@@ -198,7 +219,7 @@ with revenue of **$976,701.66**.
 
 ## 10. Data Quality
 
-The pipeline performed post-load validation checks covering:
+The pipeline includes post-load validation checks covering:
 
 - Row counts
 - Primary key uniqueness
@@ -212,16 +233,15 @@ The pipeline performed post-load validation checks covering:
 - Inventory constraints
 - Duplicate inventory snapshots
 
-All reported validation checks passed successfully.
-
-No duplicate primary keys, NULL required keys, orphan references,
-invalid numeric values, or incorrect financial calculations were found.
+Validation results should be reviewed from the dedicated
+data-quality validation output before reporting the pipeline
+as fully validated.
 
 ---
 
 ## 11. Generated Analytical Reports
 
-The following CSV reports were generated:
+The following CSV reports are generated:
 
 - `daily_sales_trend.csv`
 - `top_10_products.csv`
@@ -234,7 +254,7 @@ The following CSV reports were generated:
 
 ## 12. Generated Visualizations
 
-The pipeline generated the required Matplotlib charts:
+The pipeline generates the following Matplotlib charts:
 
 - `charts/daily_revenue.png`
 - `charts/top_10_products.png`
@@ -246,13 +266,10 @@ The pipeline generated the required Matplotlib charts:
 
 ## 13. Conclusion
 
-The Retail Analytics Pipeline successfully transformed the raw retail
-transaction export into a structured PostgreSQL analytical database.
+The Retail Analytics Pipeline transforms the raw retail transaction
+export into a structured PostgreSQL analytical database.
 
-The resulting dataset is validated and ready for downstream analytics,
-business intelligence dashboards, and further reporting.
-
-The analytical outputs provide visibility into:
+The resulting analytical outputs provide visibility into:
 
 - Sales performance
 - Product performance
@@ -262,5 +279,5 @@ The analytical outputs provide visibility into:
 - Inventory stockout risk
 - Daily revenue trends
 
-The project therefore satisfies the required ETL, data quality,
+The project therefore provides the required ETL, data-quality,
 SQL analytics, reporting, and visualization components.

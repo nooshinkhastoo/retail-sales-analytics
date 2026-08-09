@@ -3,7 +3,7 @@ from extract import extract_data
 from transform import transform_data
 from load import get_connection, load_data
 from quality import run_quality_checks
-from reports import run_reports, create_summary_report
+from reports import run_all_reports
 
 
 def main():
@@ -25,7 +25,7 @@ def main():
         print()
         print("[1/5] Extracting raw data...")
 
-        df = extract_data()
+        df, _ = extract_data()
 
         # ====================================================
         # 2. Transform
@@ -73,13 +73,7 @@ def main():
         print()
         print("[5/5] Running analytical reports...")
 
-        report_results = run_reports(conn)
-
-        # Generate business summary report.
-        create_summary_report(
-            conn,
-            report_results,
-        )
+        report_results = run_all_reports(conn)
 
         # ====================================================
         # Pipeline completed

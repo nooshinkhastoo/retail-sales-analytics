@@ -1,6 +1,6 @@
 customer_id,customer_first_name,customer_last_name,customer_full_name,customer_city,total_orders,total_quantity_sold,total_revenue,net_revenue,gross_profit,gross_margin_percentage
-C023093,Omid,Moradi,Omid Moradi,TEHRAN,34,142,63471.76,59006.67,28348.40,48.04
-C035008,Yasin,Karimi,Yasin Karimi,isfahan,32,128,67754.23,58555.53,27758.64,47.41
+C023093,Omid,Moradi,Omid Moradi,Tehran,34,142,63471.76,59006.67,28348.40,48.04
+C035008,Yasin,Karimi,Yasin Karimi,Isfahan,32,128,67754.23,58555.53,27758.64,47.41
 C021863,Mina,Moradi,Mina Moradi,Tabriz,38,142,64955.35,58530.50,25859.12,44.18
 C038472,Leila,Moradi,Leila Moradi,Karaj,33,127,66726.19,58125.14,26426.01,45.46
 C025707,Ali,Mohammadi,Ali Mohammadi,Qom,33,129,64377.06,57535.71,27503.03,47.80
