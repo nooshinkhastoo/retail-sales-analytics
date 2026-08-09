@@ -1,33 +1,46 @@
 # Python
+
 __pycache__/
 *.pyc
 
+
 # Virtual environment
+
 .venv/
 venv/
 
+
 # Environment variables
+
 .env
 
+
 # Database
+
 postgres_data/
 
+
 # Logs
+
 *.log
 
+
 # IDE
+
 .vscode/
 .idea/
 
+
 # OS
+
 .DS_Store
 
+
 # Raw source data
+
 data/raw/retail_transactions_denormalized.csv
 
-# Generated processed data
-data/processed/
 
-# Generated analytical reports
-reports/*.csv
-reports/charts/
+# Large generated file
+
+data/processed/fact_sales.csv

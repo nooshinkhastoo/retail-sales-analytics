@@ -1,0 +1,11 @@
+branch_id,branch_name,branch_city,sales_channel,total_revenue,net_revenue,gross_profit,total_quantity_sold,gross_margin_percentage
+B031,North Branch 31,Tehran,store,31869131.12,28888092.49,12645630.12,81260,43.77
+B023,Bazaar Branch 23,Rasht,mobile,31776770.79,28761688.14,12525630.70,80614,43.55
+B036,Express Branch 36,TEHRAN,store,31733558.15,28784880.68,12566775.82,81952,43.66
+B001,Central Branch 1,Rasht,online,31710719.74,28727283.13,12548518.89,81161,43.68
+B016,North Branch 16,Rasht,online,31707600.94,28750326.01,12539631.22,80549,43.62
+B032,Central Branch 32,shiraz,partner,31641302.62,28669353.60,12500723.58,80653,43.60
+B030,Airport Branch 30,Mashhad,mobile,31613062.02,28642830.06,12518920.96,80528,43.71
+B040,Outlet Branch 40,tehran,online,31595681.42,28662623.37,12574983.68,80692,43.87
+B034,Express Branch 34,isfahan,partner,31566311.70,28569662.42,12481984.95,81270,43.69
+B011,Central Branch 11,TEHRAN,partner,31546003.43,28616587.42,12482234.92,80826,43.62
