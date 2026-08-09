@@ -9,9 +9,23 @@ import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-PROCESSED_DIR = BASE_DIR / "data" / "processed"
+PROCESSED_DIR = (
+    BASE_DIR
+    / "data"
+    / "processed"
+)
+
+REJECTED_DIR = (
+    PROCESSED_DIR
+    / "rejected_records"
+)
 
 PROCESSED_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+REJECTED_DIR.mkdir(
     parents=True,
     exist_ok=True,
 )
@@ -24,23 +38,96 @@ PROCESSED_DIR.mkdir(
 def clean_text(series):
     """
     Clean text values.
-    Empty strings and common missing-value strings
-    are converted to pandas NA.
+
+    Operations:
+    - convert to pandas string type
+    - strip leading/trailing whitespace
+    - convert common missing strings to pandas NA
     """
 
-    series = series.astype("string").str.strip()
+    series = (
+        series
+        .astype("string")
+        .str.strip()
+    )
 
     series = series.replace(
         {
             "": pd.NA,
             "nan": pd.NA,
             "None": pd.NA,
+            "none": pd.NA,
             "NA": pd.NA,
             "N/A": pd.NA,
+            "null": pd.NA,
+            "NULL": pd.NA,
         }
     )
 
     return series
+
+
+def normalize_city(series):
+    """
+    Normalize city names.
+
+    Example:
+        tehran -> Tehran
+        TEHRAN -> Tehran
+        shiraz -> Shiraz
+    """
+
+    return (
+        clean_text(series)
+        .str.replace(
+            "_",
+            " ",
+            regex=False,
+        )
+        .str.replace(
+            "-",
+            " ",
+            regex=False,
+        )
+        .str.replace(
+            r"\s+",
+            " ",
+            regex=True,
+        )
+        .str.strip()
+        .str.title()
+    )
+
+
+def normalize_category(series):
+    """
+    Normalize category names.
+
+    Example:
+        home_appliances -> Home Appliances
+        HOME-APPLIANCES -> Home Appliances
+    """
+
+    return (
+        clean_text(series)
+        .str.replace(
+            "_",
+            " ",
+            regex=False,
+        )
+        .str.replace(
+            "-",
+            " ",
+            regex=False,
+        )
+        .str.replace(
+            r"\s+",
+            " ",
+            regex=True,
+        )
+        .str.strip()
+        .str.title()
+    )
 
 
 def convert_missing_values(dataframe):
@@ -59,31 +146,15 @@ def convert_missing_values(dataframe):
     )
 
 
-def make_category_display_name(series):
-    """
-    Create a human-readable category name.
-    """
-
-    return (
-        clean_text(series)
-        .str.replace("_", " ", regex=False)
-        .str.replace("-", " ", regex=False)
-        .str.title()
-    )
-
-
 def parse_mixed_date(series):
     """
-    Parse the mixed date formats used by the raw dataset.
+    Parse mixed date formats used by the raw dataset.
 
-    Supported formats:
-
+    Supported formats include:
         YYYY-MM-DD
         YYYY/MM/DD
         DD-MM-YYYY
         MM/DD/YYYY
-
-    The raw dataset contains multiple date formats.
     """
 
     values = clean_text(series)
@@ -107,8 +178,12 @@ def parse_mixed_date(series):
     )
 
     if year_first_mask.any():
-        result.loc[year_first_mask] = pd.to_datetime(
-            values.loc[year_first_mask],
+        result.loc[
+            year_first_mask
+        ] = pd.to_datetime(
+            values.loc[
+                year_first_mask
+            ],
             format="mixed",
             errors="coerce",
         )
@@ -126,8 +201,12 @@ def parse_mixed_date(series):
     )
 
     if dash_mask.any():
-        result.loc[dash_mask] = pd.to_datetime(
-            values.loc[dash_mask],
+        result.loc[
+            dash_mask
+        ] = pd.to_datetime(
+            values.loc[
+                dash_mask
+            ],
             format="%d-%m-%Y",
             errors="coerce",
         )
@@ -145,13 +224,72 @@ def parse_mixed_date(series):
     )
 
     if slash_mask.any():
-        result.loc[slash_mask] = pd.to_datetime(
-            values.loc[slash_mask],
+        result.loc[
+            slash_mask
+        ] = pd.to_datetime(
+            values.loc[
+                slash_mask
+            ],
             format="%m/%d/%Y",
             errors="coerce",
         )
 
     return result.dt.date
+
+
+def most_common_value(series):
+    """
+    Return the most frequent non-null value.
+
+    Used for entity conflict resolution.
+    """
+
+    values = series.dropna()
+
+    if values.empty:
+        return None
+
+    counts = values.value_counts()
+
+    return counts.index[0]
+
+
+def build_dimension(
+    dataframe,
+    group_column,
+    columns,
+):
+    """
+    Build a dimension table using the most common value
+    for conflicting descriptive attributes.
+
+    This avoids blindly keeping the first occurrence
+    when repeated entity records contain conflicting values.
+    """
+
+    records = []
+
+    for entity_id, group in dataframe.groupby(
+        group_column,
+        dropna=False,
+        sort=True,
+    ):
+
+        if pd.isna(entity_id):
+            continue
+
+        record = {
+            group_column: entity_id,
+        }
+
+        for column in columns:
+            record[column] = most_common_value(
+                group[column]
+            )
+
+        records.append(record)
+
+    return pd.DataFrame(records)
 
 
 # ============================================================
@@ -209,12 +347,56 @@ def validate_input_columns(dataframe):
 
 
 # ============================================================
+# Save helper
+# ============================================================
+
+def save_processed_outputs(
+    dim_categories,
+    dim_products,
+    dim_customers,
+    dim_branches,
+    fact_sales,
+    fact_inventory_snapshot,
+):
+    """
+    Save normalized processed CSV outputs.
+    """
+
+    outputs = {
+        "dim_categories.csv": dim_categories,
+        "dim_products.csv": dim_products,
+        "dim_customers.csv": dim_customers,
+        "dim_branches.csv": dim_branches,
+        "fact_sales.csv": fact_sales,
+        "fact_inventory_snapshot.csv":
+            fact_inventory_snapshot,
+    }
+
+    for filename, dataframe in outputs.items():
+
+        path = (
+            PROCESSED_DIR
+            / filename
+        )
+
+        dataframe.to_csv(
+            path,
+            index=False,
+        )
+
+        print(
+            f"Saved processed file: {path}"
+        )
+
+
+# ============================================================
 # Transform data
 # ============================================================
 
 def transform_data(dataframe):
     """
-    Transform the denormalized raw retail dataset.
+    Transform the denormalized raw retail dataset into
+    normalized dimension and fact tables.
     """
 
     print()
@@ -249,7 +431,11 @@ def transform_data(dataframe):
         df.duplicated().sum()
     )
 
-    df = df.drop_duplicates().copy()
+    df = (
+        df
+        .drop_duplicates()
+        .copy()
+    )
 
     # ========================================================
     # Clean text columns
@@ -263,22 +449,113 @@ def transform_data(dataframe):
         "customer_last_name",
         "customer_email",
         "customer_phone",
-        "customer_city",
 
         "product_id",
         "product_name",
-        "category_name",
 
         "branch_id",
         "branch_name",
-        "branch_city",
-        "sales_channel",
 
+        "sales_channel",
         "payment_method",
     ]
 
     for column in text_columns:
-        df[column] = clean_text(df[column])
+
+        df[column] = clean_text(
+            df[column]
+        )
+
+    # --------------------------------------------------------
+    # Normalize customer city
+    # --------------------------------------------------------
+
+    df["customer_city"] = normalize_city(
+        df["customer_city"]
+    )
+
+    # --------------------------------------------------------
+    # Normalize branch city
+    # --------------------------------------------------------
+
+    df["branch_city"] = normalize_city(
+        df["branch_city"]
+    )
+
+    # --------------------------------------------------------
+    # Normalize category
+    # --------------------------------------------------------
+
+    df["category_name"] = normalize_category(
+        df["category_name"]
+    )
+
+    # --------------------------------------------------------
+    # Normalize product name
+    # --------------------------------------------------------
+
+    df["product_name"] = (
+        clean_text(
+            df["product_name"]
+        )
+        .str.replace(
+            r"\s+",
+            " ",
+            regex=True,
+        )
+        .str.strip()
+    )
+
+    # --------------------------------------------------------
+    # Normalize customer names
+    # --------------------------------------------------------
+
+    df["customer_first_name"] = (
+        clean_text(
+            df["customer_first_name"]
+        )
+        .str.title()
+    )
+
+    df["customer_last_name"] = (
+        clean_text(
+            df["customer_last_name"]
+        )
+        .str.title()
+    )
+
+    # --------------------------------------------------------
+    # Normalize email
+    # --------------------------------------------------------
+
+    df["customer_email"] = (
+        clean_text(
+            df["customer_email"]
+        )
+        .str.lower()
+    )
+
+    # --------------------------------------------------------
+    # Normalize sales channel
+    # --------------------------------------------------------
+
+    df["sales_channel"] = (
+        clean_text(
+            df["sales_channel"]
+        )
+        .str.lower()
+    )
+
+    # --------------------------------------------------------
+    # Normalize payment method
+    # --------------------------------------------------------
+
+    df["payment_method"] = (
+        clean_text(
+            df["payment_method"]
+        )
+        .str.lower()
+    )
 
     # ========================================================
     # Convert dates
@@ -288,12 +565,16 @@ def transform_data(dataframe):
         df["sale_date"]
     )
 
-    df["customer_signup_date"] = parse_mixed_date(
-        df["customer_signup_date"]
+    df["customer_signup_date"] = (
+        parse_mixed_date(
+            df["customer_signup_date"]
+        )
     )
 
-    df["inventory_snapshot_date"] = parse_mixed_date(
-        df["inventory_snapshot_date"]
+    df["inventory_snapshot_date"] = (
+        parse_mixed_date(
+            df["inventory_snapshot_date"]
+        )
     )
 
     # ========================================================
@@ -310,13 +591,14 @@ def transform_data(dataframe):
     ]
 
     for column in numeric_columns:
+
         df[column] = pd.to_numeric(
             df[column],
             errors="coerce",
         )
 
     # ========================================================
-    # SALES VALIDATION
+    # REJECTION LOG
     # ========================================================
 
     rejection_reason = pd.Series(
@@ -326,14 +608,24 @@ def transform_data(dataframe):
     )
 
     def reject(mask, reason):
+
         mask = mask.fillna(False)
 
         target = (
             mask
-            & (rejection_reason == "")
+            & (
+                rejection_reason
+                == ""
+            )
         )
 
-        rejection_reason.loc[target] = reason
+        rejection_reason.loc[
+            target
+        ] = reason
+
+    # ========================================================
+    # SALES VALIDATION
+    # ========================================================
 
     # --------------------------------------------------------
     # Required identifiers
@@ -387,6 +679,11 @@ def transform_data(dataframe):
         "missing_branch_name",
     )
 
+    reject(
+        df["branch_city"].isna(),
+        "missing_branch_city",
+    )
+
     # --------------------------------------------------------
     # Sales channel
     # --------------------------------------------------------
@@ -420,7 +717,9 @@ def transform_data(dataframe):
 
     reject(
         df["quantity"].notna()
-        & (df["quantity"] <= 0),
+        & (
+            df["quantity"] <= 0
+        ),
         "invalid_quantity",
     )
 
@@ -435,7 +734,9 @@ def transform_data(dataframe):
 
     reject(
         df["unit_cost"].notna()
-        & (df["unit_cost"] < 0),
+        & (
+            df["unit_cost"] < 0
+        ),
         "invalid_unit_cost",
     )
 
@@ -450,7 +751,9 @@ def transform_data(dataframe):
 
     reject(
         df["unit_price"].notna()
-        & (df["unit_price"] < 0),
+        & (
+            df["unit_price"] < 0
+        ),
         "invalid_unit_price",
     )
 
@@ -467,7 +770,9 @@ def transform_data(dataframe):
         df["discount_percent"].notna()
         & (
             (df["discount_percent"] < 0)
-            | (df["discount_percent"] > 100)
+            | (
+                df["discount_percent"] > 100
+            )
         ),
         "invalid_discount_percent",
     )
@@ -482,7 +787,7 @@ def transform_data(dataframe):
     )
 
     # --------------------------------------------------------
-    # Duplicate sale_id
+    # Duplicate sale ID
     # --------------------------------------------------------
 
     duplicate_sale_id_mask = (
@@ -498,29 +803,29 @@ def transform_data(dataframe):
     )
 
     # ========================================================
-    # Split valid / rejected
+    # Split sales into valid / rejected
     # ========================================================
 
-    rejected_mask = (
+    rejected_sales_mask = (
         rejection_reason != ""
     )
 
-    rejected = df.loc[
-        rejected_mask
+    rejected_sales = df.loc[
+        rejected_sales_mask
     ].copy()
 
-    rejected["rejection_reason"] = (
-        rejection_reason.loc[
-            rejected_mask
-        ]
-    )
+    rejected_sales[
+        "rejection_reason"
+    ] = rejection_reason.loc[
+        rejected_sales_mask
+    ]
 
     valid = df.loc[
-        ~rejected_mask
+        ~rejected_sales_mask
     ].copy()
 
     # ========================================================
-    # Round financial values
+    # Financial calculations
     # ========================================================
 
     valid["unit_cost"] = (
@@ -537,10 +842,6 @@ def transform_data(dataframe):
         valid["discount_percent"]
         .round(2)
     )
-
-    # ========================================================
-    # Sales calculations
-    # ========================================================
 
     valid["gross_revenue"] = (
         valid["quantity"]
@@ -593,47 +894,54 @@ def transform_data(dataframe):
     # DIMENSION: CATEGORIES
     # ========================================================
 
-    dim_categories = (
-        valid[
-            [
-                "category_name",
-            ]
-        ]
+    category_names = (
+        valid["category_name"]
+        .dropna()
         .drop_duplicates()
-        .sort_values("category_name")
+        .sort_values()
         .reset_index(drop=True)
     )
 
-    dim_categories.insert(
-        0,
-        "category_id",
-        [
-            f"CAT{i:03d}"
-            for i in range(
-                1,
-                len(dim_categories) + 1,
-            )
-        ],
+    dim_categories = pd.DataFrame(
+        {
+            "category_id": [
+                f"CAT{i:03d}"
+                for i in range(
+                    1,
+                    len(category_names) + 1,
+                )
+            ],
+            "category_name": category_names,
+        }
     )
 
     dim_categories[
         "category_display_name"
-    ] = make_category_display_name(
-        dim_categories["category_name"]
-    )
-
-    dim_categories = dim_categories[
-        [
-            "category_id",
-            "category_name",
-            "category_display_name",
+    ] = (
+        dim_categories[
+            "category_name"
         ]
-    ]
+        .str.replace(
+            "_",
+            " ",
+            regex=False,
+        )
+        .str.replace(
+            "-",
+            " ",
+            regex=False,
+        )
+        .str.title()
+    )
 
     category_lookup = dict(
         zip(
-            dim_categories["category_name"],
-            dim_categories["category_id"],
+            dim_categories[
+                "category_name"
+            ],
+            dim_categories[
+                "category_id"
+            ],
         )
     )
 
@@ -646,21 +954,20 @@ def transform_data(dataframe):
     # DIMENSION: PRODUCTS
     # ========================================================
 
+    dim_products = build_dimension(
+        valid,
+        "product_id",
+        [
+            "product_name",
+            "category_id",
+            "category_name",
+            "unit_cost",
+            "unit_price",
+        ],
+    )
+
     dim_products = (
-        valid[
-            [
-                "product_id",
-                "product_name",
-                "category_id",
-                "category_name",
-                "unit_cost",
-                "unit_price",
-            ]
-        ]
-        .drop_duplicates(
-            subset=["product_id"],
-            keep="first",
-        )
+        dim_products
         .sort_values("product_id")
         .reset_index(drop=True)
     )
@@ -669,22 +976,21 @@ def transform_data(dataframe):
     # DIMENSION: CUSTOMERS
     # ========================================================
 
+    dim_customers = build_dimension(
+        valid,
+        "customer_id",
+        [
+            "customer_first_name",
+            "customer_last_name",
+            "customer_email",
+            "customer_phone",
+            "customer_city",
+            "customer_signup_date",
+        ],
+    )
+
     dim_customers = (
-        valid[
-            [
-                "customer_id",
-                "customer_first_name",
-                "customer_last_name",
-                "customer_email",
-                "customer_phone",
-                "customer_city",
-                "customer_signup_date",
-            ]
-        ]
-        .drop_duplicates(
-            subset=["customer_id"],
-            keep="first",
-        )
+        dim_customers
         .sort_values("customer_id")
         .reset_index(drop=True)
     )
@@ -727,19 +1033,18 @@ def transform_data(dataframe):
     # DIMENSION: BRANCHES
     # ========================================================
 
+    dim_branches = build_dimension(
+        valid,
+        "branch_id",
+        [
+            "branch_name",
+            "branch_city",
+            "sales_channel",
+        ],
+    )
+
     dim_branches = (
-        valid[
-            [
-                "branch_id",
-                "branch_name",
-                "branch_city",
-                "sales_channel",
-            ]
-        ]
-        .drop_duplicates(
-            subset=["branch_id"],
-            keep="first",
-        )
+        dim_branches
         .sort_values("branch_id")
         .reset_index(drop=True)
     )
@@ -779,7 +1084,8 @@ def transform_data(dataframe):
 
     fact_sales = fact_sales.rename(
         columns={
-            "margin_percent": "margin_percentage",
+            "margin_percent":
+                "margin_percentage",
         }
     )
 
@@ -787,8 +1093,9 @@ def transform_data(dataframe):
     # FACT: INVENTORY SNAPSHOT
     # ========================================================
 
-    inventory = valid[
+    inventory = df[
         [
+            "sale_id",
             "product_id",
             "branch_id",
             "inventory_snapshot_date",
@@ -797,25 +1104,118 @@ def transform_data(dataframe):
         ]
     ].copy()
 
-    inventory_valid = (
-        inventory["inventory_snapshot_date"].notna()
-        & inventory["stock_quantity"].notna()
-        & inventory["reorder_level"].notna()
-        & (inventory["stock_quantity"] >= 0)
-        & (inventory["reorder_level"] >= 0)
+    inventory_rejection_reason = pd.Series(
+        "",
+        index=inventory.index,
+        dtype="string",
     )
 
-    inventory = inventory.loc[
-        inventory_valid
+    def reject_inventory(
+        mask,
+        reason,
+    ):
+
+        mask = mask.fillna(False)
+
+        target = (
+            mask
+            & (
+                inventory_rejection_reason
+                == ""
+            )
+        )
+
+        inventory_rejection_reason.loc[
+            target
+        ] = reason
+
+    reject_inventory(
+        inventory["product_id"].isna(),
+        "inventory_missing_product_id",
+    )
+
+    reject_inventory(
+        inventory["branch_id"].isna(),
+        "inventory_missing_branch_id",
+    )
+
+    reject_inventory(
+        inventory[
+            "inventory_snapshot_date"
+        ].isna(),
+        "invalid_inventory_snapshot_date",
+    )
+
+    reject_inventory(
+        inventory[
+            "stock_quantity"
+        ].isna(),
+        "missing_stock_quantity",
+    )
+
+    reject_inventory(
+        inventory[
+            "stock_quantity"
+        ].notna()
+        & (
+            inventory[
+                "stock_quantity"
+            ] < 0
+        ),
+        "negative_stock_quantity",
+    )
+
+    reject_inventory(
+        inventory[
+            "reorder_level"
+        ].isna(),
+        "missing_reorder_level",
+    )
+
+    reject_inventory(
+        inventory[
+            "reorder_level"
+        ].notna()
+        & (
+            inventory[
+                "reorder_level"
+            ] < 0
+        ),
+        "negative_reorder_level",
+    )
+
+    inventory_rejected_mask = (
+        inventory_rejection_reason
+        != ""
+    )
+
+    rejected_inventory = inventory.loc[
+        inventory_rejected_mask
     ].copy()
 
-    inventory["stockout_risk"] = (
-        inventory["stock_quantity"]
-        <= inventory["reorder_level"]
+    rejected_inventory[
+        "rejection_reason"
+    ] = inventory_rejection_reason.loc[
+        inventory_rejected_mask
+    ]
+
+    inventory_valid = inventory.loc[
+        ~inventory_rejected_mask
+    ].copy()
+
+    inventory_valid[
+        "stockout_risk"
+    ] = (
+        inventory_valid[
+            "stock_quantity"
+        ]
+        <= inventory_valid[
+            "reorder_level"
+        ]
     )
 
     fact_inventory_snapshot = (
-        inventory[
+        inventory_valid[
             [
                 "inventory_snapshot_date",
                 "product_id",
@@ -833,48 +1233,113 @@ def transform_data(dataframe):
             ],
             keep="first",
         )
+        .sort_values(
+            [
+                "inventory_snapshot_date",
+                "product_id",
+                "branch_id",
+            ]
+        )
         .reset_index(drop=True)
+    )
+
+    # ========================================================
+    # Combine rejected records
+    # ========================================================
+
+    rejected_sales[
+        "record_type"
+    ] = "sale"
+
+    rejected_inventory[
+        "record_type"
+    ] = "inventory"
+
+    rejected_sales[
+        "rejection_source"
+    ] = "sales_validation"
+
+    rejected_inventory[
+        "rejection_source"
+    ] = "inventory_validation"
+
+    rejected = pd.concat(
+        [
+            rejected_sales,
+            rejected_inventory,
+        ],
+        ignore_index=True,
+        sort=False,
     )
 
     # ========================================================
     # Convert missing values
     # ========================================================
 
-    dim_categories = convert_missing_values(
-        dim_categories
+    dim_categories = (
+        convert_missing_values(
+            dim_categories
+        )
     )
 
-    dim_products = convert_missing_values(
-        dim_products
+    dim_products = (
+        convert_missing_values(
+            dim_products
+        )
     )
 
-    dim_customers = convert_missing_values(
-        dim_customers
+    dim_customers = (
+        convert_missing_values(
+            dim_customers
+        )
     )
 
-    dim_branches = convert_missing_values(
-        dim_branches
+    dim_branches = (
+        convert_missing_values(
+            dim_branches
+        )
     )
 
-    fact_sales = convert_missing_values(
-        fact_sales
+    fact_sales = (
+        convert_missing_values(
+            fact_sales
+        )
     )
 
-    fact_inventory_snapshot = convert_missing_values(
-        fact_inventory_snapshot
+    fact_inventory_snapshot = (
+        convert_missing_values(
+            fact_inventory_snapshot
+        )
     )
 
-    rejected = convert_missing_values(
-        rejected
+    rejected = (
+        convert_missing_values(
+            rejected
+        )
     )
 
     # ========================================================
-    # Save rejected rows
+    # Save normalized outputs
+    # ========================================================
+
+    save_processed_outputs(
+        dim_categories=dim_categories,
+        dim_products=dim_products,
+        dim_customers=dim_customers,
+        dim_branches=dim_branches,
+        fact_sales=fact_sales,
+        fact_inventory_snapshot=(
+            fact_inventory_snapshot
+        ),
+    )
+
+    # ========================================================
+    # Save rejected records
     # ========================================================
 
     rejected_path = (
-        PROCESSED_DIR
-        / "rejected_rows.csv"
+        REJECTED_DIR
+        / "rejected_records.csv"
     )
 
     rejected.to_csv(
@@ -886,11 +1351,13 @@ def transform_data(dataframe):
     # Transformation summary
     # ========================================================
 
+    print()
     print("## Transformation completed")
     print()
 
     print(
-        f"Input rows: {input_rows:,}"
+        f"Input rows: "
+        f"{input_rows:,}"
     )
 
     print(
@@ -899,12 +1366,22 @@ def transform_data(dataframe):
     )
 
     print(
-        f"Valid rows: "
+        f"Valid sales rows: "
         f"{len(valid):,}"
     )
 
     print(
-        f"Rejected rows: "
+        f"Rejected sale rows: "
+        f"{len(rejected_sales):,}"
+    )
+
+    print(
+        f"Rejected inventory rows: "
+        f"{len(rejected_inventory):,}"
+    )
+
+    print(
+        f"Total rejected records: "
         f"{len(rejected):,}"
     )
 
@@ -939,12 +1416,12 @@ def transform_data(dataframe):
     )
 
     print(
-        f"Rejected rows saved: "
+        f"Rejected records saved: "
         f"{rejected_path}"
     )
 
     # ========================================================
-    # Return tables
+    # Return normalized tables
     # ========================================================
 
     return {
@@ -953,6 +1430,7 @@ def transform_data(dataframe):
         "dim_customers": dim_customers,
         "dim_branches": dim_branches,
         "fact_sales": fact_sales,
-        "fact_inventory_snapshot": fact_inventory_snapshot,
+        "fact_inventory_snapshot":
+            fact_inventory_snapshot,
         "rejected": rejected,
     }

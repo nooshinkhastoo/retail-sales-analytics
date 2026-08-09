@@ -16,7 +16,11 @@ load_dotenv()
 # Project paths
 # ============================================================
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = (
+    Path(__file__)
+    .resolve()
+    .parent.parent
+)
 
 RAW_INPUT_PATH = (
     BASE_DIR

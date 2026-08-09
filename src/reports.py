@@ -40,7 +40,9 @@ ANALYSIS_SECTIONS = {
     "top_10_branches": "3. Top 10 Branches by Revenue",
     "category_profitability": "4. Category-Level Profitability",
     "top_10_customers": "5. Top 10 Customers by Lifetime Value",
-    "stockout_risk_products": "6. Products Below Reorder Level / Stockout Risk",
+    "stockout_risk_products": (
+        "6. Products Below Reorder Level / Stockout Risk"
+    ),
 }
 
 
@@ -50,11 +52,11 @@ ANALYSIS_SECTIONS = {
 
 def _load_analysis_queries():
     """
-    Read sql/03_analysis_queries.sql and extract
-    the six analytical SELECT statements.
+    Read sql/03_analysis_queries.sql and extract the six
+    analytical SELECT statements.
 
-    The SQL file is the single source of truth
-    for analytical queries.
+    The SQL file is the single source of truth for
+    analytical queries.
     """
 
     if not ANALYSIS_QUERIES_PATH.exists():
@@ -73,7 +75,6 @@ def _load_analysis_queries():
     current_lines = []
 
     for line in sql_text.splitlines():
-
         stripped = line.strip()
 
         if stripped.startswith("--"):
@@ -133,14 +134,17 @@ def _load_analysis_queries():
 
 def _query_to_dataframe(conn, query):
     """
-    Execute a PostgreSQL query and return
-    the result as a Pandas DataFrame.
+    Execute a PostgreSQL query and return the result
+    as a Pandas DataFrame.
     """
 
     cursor = conn.cursor()
 
     try:
         cursor.execute(query)
+
+        if cursor.description is None:
+            return pd.DataFrame()
 
         columns = [
             description[0]
@@ -226,7 +230,6 @@ def get_kpis(conn):
     """
 
     queries = {
-
         "total_sales": """
             SELECT COUNT(*)
             FROM fact_sales;
@@ -310,7 +313,6 @@ def get_kpis(conn):
     kpis = {}
 
     try:
-
         for name, query in queries.items():
 
             cursor.execute(query)
@@ -343,8 +345,6 @@ def create_daily_revenue_chart(daily_sales):
         dataframe["sale_date"]
     )
 
-    revenue_column = None
-
     if "total_revenue" in dataframe.columns:
         revenue_column = "total_revenue"
 
@@ -354,7 +354,7 @@ def create_daily_revenue_chart(daily_sales):
     elif "daily_revenue" in dataframe.columns:
         revenue_column = "daily_revenue"
 
-    if revenue_column is None:
+    else:
         raise ValueError(
             "Daily sales query must contain "
             "'total_revenue', 'net_revenue', "
@@ -362,8 +362,16 @@ def create_daily_revenue_chart(daily_sales):
         )
 
     dataframe[revenue_column] = pd.to_numeric(
-        dataframe[revenue_column]
+        dataframe[revenue_column],
+        errors="coerce",
     )
+
+    dataframe = dataframe.dropna(
+        subset=[revenue_column]
+    )
+
+    if dataframe.empty:
+        return None
 
     plt.figure(figsize=(12, 6))
 
@@ -427,8 +435,16 @@ def create_top_products_chart(top_products):
         )
 
     dataframe[revenue_column] = pd.to_numeric(
-        dataframe[revenue_column]
+        dataframe[revenue_column],
+        errors="coerce",
     )
+
+    dataframe = dataframe.dropna(
+        subset=[revenue_column]
+    )
+
+    if dataframe.empty:
+        return None
 
     dataframe = dataframe.sort_values(
         revenue_column,
@@ -498,8 +514,16 @@ def create_branch_revenue_chart(branch_revenue):
         )
 
     dataframe[revenue_column] = pd.to_numeric(
-        dataframe[revenue_column]
+        dataframe[revenue_column],
+        errors="coerce",
     )
+
+    dataframe = dataframe.dropna(
+        subset=[revenue_column]
+    )
+
+    if dataframe.empty:
+        return None
 
     dataframe = dataframe.sort_values(
         revenue_column,
@@ -570,8 +594,16 @@ def create_category_margin_chart(category_margin):
         )
 
     dataframe[margin_column] = pd.to_numeric(
-        dataframe[margin_column]
+        dataframe[margin_column],
+        errors="coerce",
     )
+
+    dataframe = dataframe.dropna(
+        subset=[margin_column]
+    )
+
+    if dataframe.empty:
+        return None
 
     dataframe = dataframe.sort_values(
         margin_column,
@@ -622,11 +654,18 @@ def create_stockout_risk_chart(stockout_products):
     """
     Create a stockout risk chart.
 
-    If the analysis query contains stock_quantity
-    and reorder_level, compare the two values.
+    Supports three possible result structures:
 
-    Otherwise, create a count-based stockout
-    risk chart from the available query result.
+    1. Detailed product-level stockout data:
+       stock_quantity + reorder_level
+
+    2. Branch-level stockout risk:
+       branch_name + stockout_risk_products
+
+    3. Product-level risk data:
+       product_name
+
+    A generic fallback is used otherwise.
     """
 
     if stockout_products.empty:
@@ -650,12 +689,24 @@ def create_stockout_risk_chart(stockout_products):
     ):
 
         dataframe["stock_quantity"] = pd.to_numeric(
-            dataframe["stock_quantity"]
+            dataframe["stock_quantity"],
+            errors="coerce",
         )
 
         dataframe["reorder_level"] = pd.to_numeric(
-            dataframe["reorder_level"]
+            dataframe["reorder_level"],
+            errors="coerce",
         )
+
+        dataframe = dataframe.dropna(
+            subset=[
+                "stock_quantity",
+                "reorder_level",
+            ]
+        )
+
+        if dataframe.empty:
+            return None
 
         dataframe = dataframe.head(10)
 
@@ -684,9 +735,15 @@ def create_stockout_risk_chart(stockout_products):
             label="Current Stock",
         )
 
+        product_labels = (
+            dataframe["product_name"]
+            if "product_name" in dataframe.columns
+            else dataframe["product_id"]
+        )
+
         plt.yticks(
             positions,
-            dataframe["product_name"],
+            product_labels,
         )
 
         plt.title(
@@ -717,8 +774,78 @@ def create_stockout_risk_chart(stockout_products):
 
     # --------------------------------------------------------
     # Case 2:
-    # Query returns product-level risk information
-    # but not stock/reorder quantities.
+    # Current SQL returns branch-level stockout risk.
+    # --------------------------------------------------------
+
+    if (
+        "branch_name" in dataframe.columns
+        and "stockout_risk_products"
+        in dataframe.columns
+    ):
+
+        dataframe[
+            "stockout_risk_products"
+        ] = pd.to_numeric(
+            dataframe[
+                "stockout_risk_products"
+            ],
+            errors="coerce",
+        )
+
+        dataframe = dataframe.dropna(
+            subset=[
+                "stockout_risk_products"
+            ]
+        )
+
+        if dataframe.empty:
+            return None
+
+        dataframe = dataframe.sort_values(
+            "stockout_risk_products",
+            ascending=True,
+        )
+
+        dataframe = dataframe.tail(10)
+
+        plt.figure(figsize=(10, 7))
+
+        plt.barh(
+            dataframe["branch_name"],
+            dataframe[
+                "stockout_risk_products"
+            ],
+        )
+
+        plt.title(
+            "Top 10 Branches by Stockout Risk"
+        )
+
+        plt.xlabel(
+            "Number of Stockout-Risk Products"
+        )
+
+        plt.ylabel("Branch")
+
+        plt.tight_layout()
+
+        plt.savefig(
+            output_path,
+            dpi=150,
+            bbox_inches="tight",
+        )
+
+        plt.close()
+
+        print(
+            f"Saved chart: {output_path}"
+        )
+
+        return output_path
+
+    # --------------------------------------------------------
+    # Case 3:
+    # Query returns product-level risk information.
     # --------------------------------------------------------
 
     if "product_name" in dataframe.columns:
@@ -765,7 +892,7 @@ def create_stockout_risk_chart(stockout_products):
         return output_path
 
     # --------------------------------------------------------
-    # Case 3:
+    # Case 4:
     # Generic fallback.
     # --------------------------------------------------------
 
@@ -860,7 +987,11 @@ def _to_float(value):
     if value is None:
         return 0.0
 
-    return float(value)
+    try:
+        return float(value)
+
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _to_int(value):
@@ -871,7 +1002,11 @@ def _to_int(value):
     if value is None:
         return 0
 
-    return int(value)
+    try:
+        return int(value)
+
+    except (TypeError, ValueError):
+        return 0
 
 
 # ============================================================
@@ -929,62 +1064,107 @@ def create_summary_report(
 
     top_category_name = "N/A"
     top_category_revenue = 0.0
+
     best_margin_category_name = "N/A"
     best_margin = 0.0
 
     if not category_sales.empty:
 
+        category_sales = category_sales.copy()
+
         revenue_column = (
             "net_revenue"
-            if "net_revenue" in category_sales.columns
+            if "net_revenue"
+            in category_sales.columns
             else "total_revenue"
         )
 
-        category_sales = category_sales.copy()
-
-        category_sales[revenue_column] = pd.to_numeric(
-            category_sales[revenue_column]
+        category_sales[
+            revenue_column
+        ] = pd.to_numeric(
+            category_sales[
+                revenue_column
+            ],
+            errors="coerce",
         )
 
-        top_category = category_sales.sort_values(
-            revenue_column,
-            ascending=False,
-        ).iloc[0]
-
-        top_category_name = (
-            top_category["category_name"]
+        category_sales = (
+            category_sales.dropna(
+                subset=[revenue_column]
+            )
         )
 
-        top_category_revenue = _to_float(
-            top_category[revenue_column]
-        )
+        if not category_sales.empty:
 
-        if "gross_margin_percentage" in category_sales.columns:
+            top_category = (
+                category_sales
+                .sort_values(
+                    revenue_column,
+                    ascending=False,
+                )
+                .iloc[0]
+            )
+
+            top_category_name = str(
+                top_category[
+                    "category_name"
+                ]
+            )
+
+            top_category_revenue = (
+                _to_float(
+                    top_category[
+                        revenue_column
+                    ]
+                )
+            )
+
+        if (
+            "gross_margin_percentage"
+            in category_sales.columns
+        ):
 
             category_sales[
                 "gross_margin_percentage"
             ] = pd.to_numeric(
                 category_sales[
                     "gross_margin_percentage"
-                ]
+                ],
+                errors="coerce",
             )
 
-            best_margin_category = (
-                category_sales.sort_values(
-                    "gross_margin_percentage",
-                    ascending=False,
-                ).iloc[0]
+            margin_data = (
+                category_sales.dropna(
+                    subset=[
+                        "gross_margin_percentage"
+                    ]
+                )
             )
 
-            best_margin_category_name = (
-                best_margin_category["category_name"]
-            )
+            if not margin_data.empty:
 
-            best_margin = _to_float(
-                best_margin_category[
-                    "gross_margin_percentage"
-                ]
-            )
+                best_margin_category = (
+                    margin_data
+                    .sort_values(
+                        "gross_margin_percentage",
+                        ascending=False,
+                    )
+                    .iloc[0]
+                )
+
+                best_margin_category_name = (
+                    str(
+                        best_margin_category[
+                            "category_name"
+                        ]
+                    )
+                )
+
+                best_margin = _to_float(
+                    best_margin_category[
+                        "gross_margin_percentage"
+                    ]
+                )
 
     # --------------------------------------------------------
     # Customer
@@ -996,26 +1176,58 @@ def create_summary_report(
 
     if not top_customers.empty:
 
-        top_customer = top_customers.iloc[0]
+        top_customer = (
+            top_customers.iloc[0]
+        )
 
-        if "customer_full_name" in top_customers.columns:
-            top_customer_name = (
-                top_customer["customer_full_name"]
+        if (
+            "customer_full_name"
+            in top_customers.columns
+        ):
+
+            top_customer_name = str(
+                top_customer[
+                    "customer_full_name"
+                ]
             )
 
-        if "net_revenue" in top_customers.columns:
-            top_customer_spent = _to_float(
-                top_customer["net_revenue"]
+        if (
+            "net_revenue"
+            in top_customers.columns
+        ):
+
+            top_customer_spent = (
+                _to_float(
+                    top_customer[
+                        "net_revenue"
+                    ]
+                )
             )
 
-        elif "total_revenue" in top_customers.columns:
-            top_customer_spent = _to_float(
-                top_customer["total_revenue"]
+        elif (
+            "total_revenue"
+            in top_customers.columns
+        ):
+
+            top_customer_spent = (
+                _to_float(
+                    top_customer[
+                        "total_revenue"
+                    ]
+                )
             )
 
-        if "total_orders" in top_customers.columns:
-            top_customer_orders = _to_int(
-                top_customer["total_orders"]
+        if (
+            "total_orders"
+            in top_customers.columns
+        ):
+
+            top_customer_orders = (
+                _to_int(
+                    top_customer[
+                        "total_orders"
+                    ]
+                )
             )
 
     # --------------------------------------------------------
@@ -1027,20 +1239,40 @@ def create_summary_report(
 
     if not top_products.empty:
 
-        top_product = top_products.iloc[0]
-
-        top_product_name = (
-            top_product["product_name"]
+        top_product = (
+            top_products.iloc[0]
         )
 
-        if "total_revenue" in top_products.columns:
-            top_product_revenue = _to_float(
-                top_product["total_revenue"]
+        top_product_name = str(
+            top_product[
+                "product_name"
+            ]
+        )
+
+        if (
+            "total_revenue"
+            in top_products.columns
+        ):
+
+            top_product_revenue = (
+                _to_float(
+                    top_product[
+                        "total_revenue"
+                    ]
+                )
             )
 
-        elif "net_revenue" in top_products.columns:
-            top_product_revenue = _to_float(
-                top_product["net_revenue"]
+        elif (
+            "net_revenue"
+            in top_products.columns
+        ):
+
+            top_product_revenue = (
+                _to_float(
+                    top_product[
+                        "net_revenue"
+                    ]
+                )
             )
 
     # --------------------------------------------------------
@@ -1052,20 +1284,40 @@ def create_summary_report(
 
     if not branch_revenue.empty:
 
-        top_branch = branch_revenue.iloc[0]
-
-        top_branch_name = (
-            top_branch["branch_name"]
+        top_branch = (
+            branch_revenue.iloc[0]
         )
 
-        if "total_revenue" in branch_revenue.columns:
-            top_branch_revenue = _to_float(
-                top_branch["total_revenue"]
+        top_branch_name = str(
+            top_branch[
+                "branch_name"
+            ]
+        )
+
+        if (
+            "total_revenue"
+            in branch_revenue.columns
+        ):
+
+            top_branch_revenue = (
+                _to_float(
+                    top_branch[
+                        "total_revenue"
+                    ]
+                )
             )
 
-        elif "net_revenue" in branch_revenue.columns:
-            top_branch_revenue = _to_float(
-                top_branch["net_revenue"]
+        elif (
+            "net_revenue"
+            in branch_revenue.columns
+        ):
+
+            top_branch_revenue = (
+                _to_float(
+                    top_branch[
+                        "net_revenue"
+                    ]
+                )
             )
 
     # --------------------------------------------------------
@@ -1082,16 +1334,35 @@ def create_summary_report(
 
         daily_sales = daily_sales.copy()
 
-        if "total_revenue" in daily_sales.columns:
-            daily_revenue_column = "total_revenue"
+        if (
+            "total_revenue"
+            in daily_sales.columns
+        ):
 
-        elif "net_revenue" in daily_sales.columns:
-            daily_revenue_column = "net_revenue"
+            daily_revenue_column = (
+                "total_revenue"
+            )
 
-        elif "daily_revenue" in daily_sales.columns:
-            daily_revenue_column = "daily_revenue"
+        elif (
+            "net_revenue"
+            in daily_sales.columns
+        ):
+
+            daily_revenue_column = (
+                "net_revenue"
+            )
+
+        elif (
+            "daily_revenue"
+            in daily_sales.columns
+        ):
+
+            daily_revenue_column = (
+                "daily_revenue"
+            )
 
         else:
+
             daily_revenue_column = None
 
         if daily_revenue_column is not None:
@@ -1101,48 +1372,136 @@ def create_summary_report(
             ] = pd.to_numeric(
                 daily_sales[
                     daily_revenue_column
-                ]
+                ],
+                errors="coerce",
             )
 
-            best_day = daily_sales.loc[
-                daily_sales[
-                    daily_revenue_column
-                ].idxmax()
-            ]
-
-            lowest_day = daily_sales.loc[
-                daily_sales[
-                    daily_revenue_column
-                ].idxmin()
-            ]
-
-            best_day_date = (
-                best_day["sale_date"]
+            daily_sales = (
+                daily_sales.dropna(
+                    subset=[
+                        daily_revenue_column
+                    ]
+                )
             )
 
-            best_day_revenue = _to_float(
-                best_day[
-                    daily_revenue_column
-                ]
-            )
+            if not daily_sales.empty:
 
-            lowest_day_date = (
-                lowest_day["sale_date"]
-            )
+                best_day = (
+                    daily_sales.loc[
+                        daily_sales[
+                            daily_revenue_column
+                        ].idxmax()
+                    ]
+                )
 
-            lowest_day_revenue = _to_float(
-                lowest_day[
-                    daily_revenue_column
-                ]
-            )
+                lowest_day = (
+                    daily_sales.loc[
+                        daily_sales[
+                            daily_revenue_column
+                        ].idxmin()
+                    ]
+                )
+
+                best_day_date = str(
+                    best_day[
+                        "sale_date"
+                    ]
+                )
+
+                best_day_revenue = (
+                    _to_float(
+                        best_day[
+                            daily_revenue_column
+                        ]
+                    )
+                )
+
+                lowest_day_date = str(
+                    lowest_day[
+                        "sale_date"
+                    ]
+                )
+
+                lowest_day_revenue = (
+                    _to_float(
+                        lowest_day[
+                            daily_revenue_column
+                        ]
+                    )
+                )
 
     # --------------------------------------------------------
     # Stockout
     # --------------------------------------------------------
 
     stockout_count = _to_int(
-        kpis["stockout_risk_count"]
+        kpis[
+            "stockout_risk_count"
+        ]
     )
+
+    # --------------------------------------------------------
+    # Branch-level stockout summary
+    # --------------------------------------------------------
+
+    top_stockout_branch_name = "N/A"
+    top_stockout_branch_count = 0
+
+    if not stockout_products.empty:
+
+        if (
+            "branch_name"
+            in stockout_products.columns
+            and
+            "stockout_risk_products"
+            in stockout_products.columns
+        ):
+
+            stockout_products = (
+                stockout_products.copy()
+            )
+
+            stockout_products[
+                "stockout_risk_products"
+            ] = pd.to_numeric(
+                stockout_products[
+                    "stockout_risk_products"
+                ],
+                errors="coerce",
+            )
+
+            stockout_products = (
+                stockout_products.dropna(
+                    subset=[
+                        "stockout_risk_products"
+                    ]
+                )
+            )
+
+            if not stockout_products.empty:
+
+                top_stockout_branch = (
+                    stockout_products
+                    .sort_values(
+                        "stockout_risk_products",
+                        ascending=False,
+                    )
+                    .iloc[0]
+                )
+
+                top_stockout_branch_name = str(
+                    top_stockout_branch[
+                        "branch_name"
+                    ]
+                )
+
+                top_stockout_branch_count = (
+                    _to_int(
+                        top_stockout_branch[
+                            "stockout_risk_products"
+                        ]
+                    )
+                )
 
     # --------------------------------------------------------
     # Build Markdown
@@ -1152,17 +1511,14 @@ def create_summary_report(
 
 ## 1. Executive Summary
 
-The Retail Analytics Pipeline processed the retail transaction dataset,
-transformed the denormalized source data into a normalized analytical
-model, loaded the resulting data into PostgreSQL, performed data quality
-checks, and generated analytical reports and visualizations.
+The Retail Analytics Pipeline transformed the retail transaction
+dataset into a normalized analytical model, loaded the resulting
+data into PostgreSQL, performed data-quality checks, and generated
+analytical reports and visualizations.
 
-The pipeline processed **1,000,000 raw transaction rows** and produced
-**{_to_int(kpis["total_sales"]):,} valid sales records** after transformation
-and data cleaning.
+The analytical database currently contains:
 
-The resulting analytical database contains:
-
+- **{_to_int(kpis["total_sales"]):,} sales transactions**
 - **{_to_int(kpis["total_customers"]):,} customers**
 - **{_to_int(kpis["total_products"]):,} products**
 - **{_to_int(kpis["total_categories"]):,} categories**
@@ -1203,13 +1559,13 @@ generating **${top_category_revenue:,.2f}** in net revenue.
 
     if not category_sales.empty:
 
-        for _, row in category_sales.iterrows():
+        revenue_column = (
+            "net_revenue"
+            if "net_revenue" in category_sales.columns
+            else "total_revenue"
+        )
 
-            revenue_column = (
-                "net_revenue"
-                if "net_revenue" in category_sales.columns
-                else "total_revenue"
-            )
+        for _, row in category_sales.iterrows():
 
             gross_profit = (
                 _to_float(
@@ -1235,12 +1591,12 @@ generating **${top_category_revenue:,.2f}** in net revenue.
                 f"{margin:.2f}% |\n"
             )
 
-    summary += """
+    summary += f"""
 ---
 
 ## 4. Top Products
 
-The highest-revenue product is **""" + top_product_name + f"""**,
+The highest-revenue product is **{top_product_name}**,
 generating **${top_product_revenue:,.2f}** in revenue.
 
 ### Top 10 Products by Revenue
@@ -1249,33 +1605,35 @@ generating **${top_product_revenue:,.2f}** in revenue.
 | --- | ---: | ---: |
 """
 
-    for _, row in top_products.iterrows():
+    if not top_products.empty:
 
-        quantity = (
-            _to_int(
-                row["total_quantity_sold"]
-            )
-            if "total_quantity_sold"
-            in top_products.columns
-            else 0
-        )
+        for _, row in top_products.iterrows():
 
-        revenue = (
-            _to_float(
-                row["total_revenue"]
+            quantity = (
+                _to_int(
+                    row["total_quantity_sold"]
+                )
+                if "total_quantity_sold"
+                in top_products.columns
+                else 0
             )
-            if "total_revenue"
-            in top_products.columns
-            else _to_float(
-                row["net_revenue"]
-            )
-        )
 
-        summary += (
-            f"| {row['product_name']} | "
-            f"{quantity:,} | "
-            f"${revenue:,.2f} |\n"
-        )
+            revenue = (
+                _to_float(
+                    row["total_revenue"]
+                )
+                if "total_revenue"
+                in top_products.columns
+                else _to_float(
+                    row["net_revenue"]
+                )
+            )
+
+            summary += (
+                f"| {row['product_name']} | "
+                f"{quantity:,} | "
+                f"${revenue:,.2f} |\n"
+            )
 
     summary += f"""
 ---
@@ -1291,39 +1649,41 @@ generating **${top_branch_revenue:,.2f}** in revenue.
 | --- | --- | --- | ---: |
 """
 
-    for _, row in branch_revenue.iterrows():
+    if not branch_revenue.empty:
 
-        revenue = (
-            _to_float(
-                row["total_revenue"]
+        for _, row in branch_revenue.iterrows():
+
+            revenue = (
+                _to_float(
+                    row["total_revenue"]
+                )
+                if "total_revenue"
+                in branch_revenue.columns
+                else _to_float(
+                    row["net_revenue"]
+                )
             )
-            if "total_revenue"
-            in branch_revenue.columns
-            else _to_float(
-                row["net_revenue"]
+
+            city = (
+                row["branch_city"]
+                if "branch_city"
+                in branch_revenue.columns
+                else ""
             )
-        )
 
-        city = (
-            row["branch_city"]
-            if "branch_city"
-            in branch_revenue.columns
-            else ""
-        )
+            channel = (
+                row["sales_channel"]
+                if "sales_channel"
+                in branch_revenue.columns
+                else ""
+            )
 
-        channel = (
-            row["sales_channel"]
-            if "sales_channel"
-            in branch_revenue.columns
-            else ""
-        )
-
-        summary += (
-            f"| {row['branch_name']} | "
-            f"{city} | "
-            f"{channel} | "
-            f"${revenue:,.2f} |\n"
-        )
+            summary += (
+                f"| {row['branch_name']} | "
+                f"{city} | "
+                f"{channel} | "
+                f"${revenue:,.2f} |\n"
+            )
 
     summary += f"""
 ---
@@ -1348,33 +1708,35 @@ across **{top_customer_orders:,} transactions**.
 | --- | ---: | ---: |
 """
 
-    for _, row in top_customers.iterrows():
+    if not top_customers.empty:
 
-        spent = (
-            _to_float(
-                row["net_revenue"]
-            )
-            if "net_revenue"
-            in top_customers.columns
-            else _to_float(
-                row["total_revenue"]
-            )
-        )
+        for _, row in top_customers.iterrows():
 
-        orders = (
-            _to_int(
-                row["total_orders"]
+            spent = (
+                _to_float(
+                    row["net_revenue"]
+                )
+                if "net_revenue"
+                in top_customers.columns
+                else _to_float(
+                    row["total_revenue"]
+                )
             )
-            if "total_orders"
-            in top_customers.columns
-            else 0
-        )
 
-        summary += (
-            f"| {row['customer_full_name']} | "
-            f"{orders:,} | "
-            f"${spent:,.2f} |\n"
-        )
+            orders = (
+                _to_int(
+                    row["total_orders"]
+                )
+                if "total_orders"
+                in top_customers.columns
+                else 0
+            )
+
+            summary += (
+                f"| {row['customer_full_name']} | "
+                f"{orders:,} | "
+                f"${spent:,.2f} |\n"
+            )
 
     summary += f"""
 ---
@@ -1385,39 +1747,74 @@ The inventory analysis identified
 **{stockout_count:,} inventory records**
 marked as having stockout risk.
 
+The branch with the highest number of stockout-risk products is
+**{top_stockout_branch_name}**, with
+**{top_stockout_branch_count:,} stockout-risk products**.
+
 Products at or below their reorder level should be reviewed
 for replenishment.
 
-### Stockout Risk Results
+### Stockout Risk by Branch
 
-| Product | Details |
-| --- | --- |
+| Branch | Stockout-Risk Products |
+| --- | ---: |
 """
 
     if not stockout_products.empty:
 
-        for _, row in stockout_products.head(20).iterrows():
+        if (
+            "branch_name" in stockout_products.columns
+            and
+            "stockout_risk_products"
+            in stockout_products.columns
+        ):
 
-            if (
-                "stock_quantity" in stockout_products.columns
-                and "reorder_level"
-                in stockout_products.columns
-            ):
+            for _, row in stockout_products.iterrows():
 
-                details = (
-                    f"Stock: {_to_int(row['stock_quantity']):,}; "
-                    f"Reorder level: "
-                    f"{_to_int(row['reorder_level']):,}"
+                count = _to_int(
+                    row[
+                        "stockout_risk_products"
+                    ]
                 )
 
-            else:
+                summary += (
+                    f"| {row['branch_name']} | "
+                    f"{count:,} |\n"
+                )
 
-                details = "At-risk inventory record"
+        elif "product_name" in stockout_products.columns:
 
-            summary += (
-                f"| {row.get('product_name', 'N/A')} | "
-                f"{details} |\n"
-            )
+            for _, row in (
+                stockout_products
+                .head(20)
+                .iterrows()
+            ):
+
+                if (
+                    "stock_quantity"
+                    in stockout_products.columns
+                    and
+                    "reorder_level"
+                    in stockout_products.columns
+                ):
+
+                    details = (
+                        f"Stock: "
+                        f"{_to_int(row['stock_quantity']):,}; "
+                        f"Reorder level: "
+                        f"{_to_int(row['reorder_level']):,}"
+                    )
+
+                else:
+
+                    details = (
+                        "At-risk inventory record"
+                    )
+
+                summary += (
+                    f"| {row.get('product_name', 'N/A')} | "
+                    f"{details} |\n"
+                )
 
     summary += f"""
 ---
@@ -1437,7 +1834,7 @@ with revenue of **${lowest_day_revenue:,.2f}**.
 
 ## 10. Data Quality
 
-The pipeline performed post-load validation checks covering:
+The pipeline includes post-load validation checks covering:
 
 - Row counts
 - Primary key uniqueness
@@ -1451,16 +1848,15 @@ The pipeline performed post-load validation checks covering:
 - Inventory constraints
 - Duplicate inventory snapshots
 
-All reported validation checks passed successfully.
-
-No duplicate primary keys, NULL required keys, orphan references,
-invalid numeric values, or incorrect financial calculations were found.
+Validation results should be reviewed from the dedicated
+data-quality validation output before reporting the pipeline
+as fully validated.
 
 ---
 
 ## 11. Generated Analytical Reports
 
-The following CSV reports were generated:
+The following CSV reports are generated:
 
 - `daily_sales_trend.csv`
 - `top_10_products.csv`
@@ -1473,7 +1869,7 @@ The following CSV reports were generated:
 
 ## 12. Generated Visualizations
 
-The pipeline generated the required Matplotlib charts:
+The pipeline generates the following Matplotlib charts:
 
 - `charts/daily_revenue.png`
 - `charts/top_10_products.png`
@@ -1485,13 +1881,10 @@ The pipeline generated the required Matplotlib charts:
 
 ## 13. Conclusion
 
-The Retail Analytics Pipeline successfully transformed the raw retail
-transaction export into a structured PostgreSQL analytical database.
+The Retail Analytics Pipeline transforms the raw retail transaction
+export into a structured PostgreSQL analytical database.
 
-The resulting dataset is validated and ready for downstream analytics,
-business intelligence dashboards, and further reporting.
-
-The analytical outputs provide visibility into:
+The resulting analytical outputs provide visibility into:
 
 - Sales performance
 - Product performance
@@ -1501,7 +1894,7 @@ The analytical outputs provide visibility into:
 - Inventory stockout risk
 - Daily revenue trends
 
-The project therefore satisfies the required ETL, data quality,
+The project therefore provides the required ETL, data-quality,
 SQL analytics, reporting, and visualization components.
 """
 
