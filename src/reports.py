@@ -1,32 +1,10 @@
-from pathlib import Path
-
 import pandas as pd
 import matplotlib.pyplot as plt
 
-
-# ============================================================
-# Project paths
-# ============================================================
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-REPORTS_DIR = BASE_DIR / "reports"
-CHARTS_DIR = REPORTS_DIR / "charts"
-
-ANALYSIS_QUERIES_PATH = (
-    BASE_DIR
-    / "sql"
-    / "03_analysis_queries.sql"
-)
-
-REPORTS_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
-
-CHARTS_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
+from config import (
+    REPORTS_DIR,
+    CHARTS_DIR,
+    ANALYSIS_QUERIES_PATH,
 )
 
 
@@ -75,23 +53,29 @@ def _load_analysis_queries():
     current_lines = []
 
     for line in sql_text.splitlines():
+
         stripped = line.strip()
 
         if stripped.startswith("--"):
+
             comment = stripped[2:].strip()
 
             for query_name, section_title in (
                 ANALYSIS_SECTIONS.items()
             ):
+
                 if comment == section_title:
 
                     if current_query is not None:
+
                         query = "\n".join(
                             current_lines
                         ).strip()
 
                         if query:
-                            queries[current_query] = query
+                            queries[
+                                current_query
+                            ] = query
 
                     current_query = query_name
                     current_lines = []
@@ -104,12 +88,15 @@ def _load_analysis_queries():
             current_lines.append(line)
 
     if current_query is not None:
+
         query = "\n".join(
             current_lines
         ).strip()
 
         if query:
-            queries[current_query] = query
+            queries[
+                current_query
+            ] = query
 
     missing = [
         name
@@ -132,7 +119,10 @@ def _load_analysis_queries():
 # Helper: execute query and return DataFrame
 # ============================================================
 
-def _query_to_dataframe(conn, query):
+def _query_to_dataframe(
+    conn,
+    query,
+):
     """
     Execute a PostgreSQL query and return the result
     as a Pandas DataFrame.
@@ -141,6 +131,7 @@ def _query_to_dataframe(conn, query):
     cursor = conn.cursor()
 
     try:
+
         cursor.execute(query)
 
         if cursor.description is None:
@@ -194,7 +185,9 @@ def run_reports(conn):
             query,
         )
 
-        results[report_name] = dataframe
+        results[
+            report_name
+        ] = dataframe
 
         output_path = (
             REPORTS_DIR
@@ -230,6 +223,7 @@ def get_kpis(conn):
     """
 
     queries = {
+
         "total_sales": """
             SELECT COUNT(*)
             FROM fact_sales;
@@ -310,9 +304,11 @@ def get_kpis(conn):
     }
 
     cursor = conn.cursor()
+
     kpis = {}
 
     try:
+
         for name, query in queries.items():
 
             cursor.execute(query)
@@ -331,7 +327,9 @@ def get_kpis(conn):
 # Chart 1: Daily revenue
 # ============================================================
 
-def create_daily_revenue_chart(daily_sales):
+def create_daily_revenue_chart(
+    daily_sales,
+):
     """
     Create a daily revenue line chart.
     """
@@ -346,15 +344,19 @@ def create_daily_revenue_chart(daily_sales):
     )
 
     if "total_revenue" in dataframe.columns:
+
         revenue_column = "total_revenue"
 
     elif "net_revenue" in dataframe.columns:
+
         revenue_column = "net_revenue"
 
     elif "daily_revenue" in dataframe.columns:
+
         revenue_column = "daily_revenue"
 
     else:
+
         raise ValueError(
             "Daily sales query must contain "
             "'total_revenue', 'net_revenue', "
@@ -367,24 +369,38 @@ def create_daily_revenue_chart(daily_sales):
     )
 
     dataframe = dataframe.dropna(
-        subset=[revenue_column]
+        subset=[
+            revenue_column
+        ]
     )
 
     if dataframe.empty:
         return None
 
-    plt.figure(figsize=(12, 6))
+    plt.figure(
+        figsize=(12, 6)
+    )
 
     plt.plot(
         dataframe["sale_date"],
         dataframe[revenue_column],
     )
 
-    plt.title("Daily Revenue Trend")
-    plt.xlabel("Date")
-    plt.ylabel("Revenue")
+    plt.title(
+        "Daily Revenue Trend"
+    )
 
-    plt.xticks(rotation=45)
+    plt.xlabel(
+        "Date"
+    )
+
+    plt.ylabel(
+        "Revenue"
+    )
+
+    plt.xticks(
+        rotation=45
+    )
 
     plt.tight_layout()
 
@@ -412,7 +428,9 @@ def create_daily_revenue_chart(daily_sales):
 # Chart 2: Top 10 products
 # ============================================================
 
-def create_top_products_chart(top_products):
+def create_top_products_chart(
+    top_products,
+):
     """
     Create a bar chart for the top 10 products.
     """
@@ -423,12 +441,15 @@ def create_top_products_chart(top_products):
     dataframe = top_products.copy()
 
     if "total_revenue" in dataframe.columns:
+
         revenue_column = "total_revenue"
 
     elif "net_revenue" in dataframe.columns:
+
         revenue_column = "net_revenue"
 
     else:
+
         raise ValueError(
             "Top products query must contain "
             "'total_revenue' or 'net_revenue'."
@@ -440,7 +461,9 @@ def create_top_products_chart(top_products):
     )
 
     dataframe = dataframe.dropna(
-        subset=[revenue_column]
+        subset=[
+            revenue_column
+        ]
     )
 
     if dataframe.empty:
@@ -451,7 +474,9 @@ def create_top_products_chart(top_products):
         ascending=True,
     )
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(
+        figsize=(10, 6)
+    )
 
     plt.barh(
         dataframe["product_name"],
@@ -462,8 +487,13 @@ def create_top_products_chart(top_products):
         "Top 10 Products by Revenue"
     )
 
-    plt.xlabel("Revenue")
-    plt.ylabel("Product")
+    plt.xlabel(
+        "Revenue"
+    )
+
+    plt.ylabel(
+        "Product"
+    )
 
     plt.tight_layout()
 
@@ -491,7 +521,9 @@ def create_top_products_chart(top_products):
 # Chart 3: Revenue by branch
 # ============================================================
 
-def create_branch_revenue_chart(branch_revenue):
+def create_branch_revenue_chart(
+    branch_revenue,
+):
     """
     Create a bar chart for the top branches by revenue.
     """
@@ -502,12 +534,15 @@ def create_branch_revenue_chart(branch_revenue):
     dataframe = branch_revenue.copy()
 
     if "total_revenue" in dataframe.columns:
+
         revenue_column = "total_revenue"
 
     elif "net_revenue" in dataframe.columns:
+
         revenue_column = "net_revenue"
 
     else:
+
         raise ValueError(
             "Branch query must contain "
             "'total_revenue' or 'net_revenue'."
@@ -519,7 +554,9 @@ def create_branch_revenue_chart(branch_revenue):
     )
 
     dataframe = dataframe.dropna(
-        subset=[revenue_column]
+        subset=[
+            revenue_column
+        ]
     )
 
     if dataframe.empty:
@@ -530,7 +567,9 @@ def create_branch_revenue_chart(branch_revenue):
         ascending=True,
     )
 
-    plt.figure(figsize=(12, 8))
+    plt.figure(
+        figsize=(12, 8)
+    )
 
     plt.barh(
         dataframe["branch_name"],
@@ -541,8 +580,13 @@ def create_branch_revenue_chart(branch_revenue):
         "Top Branches by Revenue"
     )
 
-    plt.xlabel("Revenue")
-    plt.ylabel("Branch")
+    plt.xlabel(
+        "Revenue"
+    )
+
+    plt.ylabel(
+        "Branch"
+    )
 
     plt.tight_layout()
 
@@ -570,7 +614,9 @@ def create_branch_revenue_chart(branch_revenue):
 # Chart 4: Category gross margin
 # ============================================================
 
-def create_category_margin_chart(category_margin):
+def create_category_margin_chart(
+    category_margin,
+):
     """
     Create a bar chart for category gross margin.
     """
@@ -580,13 +626,26 @@ def create_category_margin_chart(category_margin):
 
     dataframe = category_margin.copy()
 
-    if "gross_margin_percentage" in dataframe.columns:
-        margin_column = "gross_margin_percentage"
+    if (
+        "gross_margin_percentage"
+        in dataframe.columns
+    ):
 
-    elif "gross_margin_percent" in dataframe.columns:
-        margin_column = "gross_margin_percent"
+        margin_column = (
+            "gross_margin_percentage"
+        )
+
+    elif (
+        "gross_margin_percent"
+        in dataframe.columns
+    ):
+
+        margin_column = (
+            "gross_margin_percent"
+        )
 
     else:
+
         raise ValueError(
             "Category query must contain "
             "'gross_margin_percentage' "
@@ -599,7 +658,9 @@ def create_category_margin_chart(category_margin):
     )
 
     dataframe = dataframe.dropna(
-        subset=[margin_column]
+        subset=[
+            margin_column
+        ]
     )
 
     if dataframe.empty:
@@ -610,7 +671,9 @@ def create_category_margin_chart(category_margin):
         ascending=True,
     )
 
-    plt.figure(figsize=(10, 8))
+    plt.figure(
+        figsize=(10, 8)
+    )
 
     plt.barh(
         dataframe["category_name"],
@@ -621,8 +684,13 @@ def create_category_margin_chart(category_margin):
         "Gross Margin by Category"
     )
 
-    plt.xlabel("Gross Margin (%)")
-    plt.ylabel("Category")
+    plt.xlabel(
+        "Gross Margin (%)"
+    )
+
+    plt.ylabel(
+        "Category"
+    )
 
     plt.tight_layout()
 
@@ -650,11 +718,13 @@ def create_category_margin_chart(category_margin):
 # Chart 5: Stockout risk
 # ============================================================
 
-def create_stockout_risk_chart(stockout_products):
+def create_stockout_risk_chart(
+    stockout_products,
+):
     """
     Create a stockout risk chart.
 
-    Supports three possible result structures:
+    Supports:
 
     1. Detailed product-level stockout data:
        stock_quantity + reorder_level
@@ -665,7 +735,7 @@ def create_stockout_risk_chart(stockout_products):
     3. Product-level risk data:
        product_name
 
-    A generic fallback is used otherwise.
+    4. Generic fallback.
     """
 
     if stockout_products.empty:
@@ -679,8 +749,7 @@ def create_stockout_risk_chart(stockout_products):
     )
 
     # --------------------------------------------------------
-    # Case 1:
-    # Detailed stockout data is available.
+    # Case 1: Detailed stockout data
     # --------------------------------------------------------
 
     if (
@@ -715,7 +784,9 @@ def create_stockout_risk_chart(stockout_products):
             ascending=True,
         )
 
-        plt.figure(figsize=(10, 7))
+        plt.figure(
+            figsize=(10, 7)
+        )
 
         positions = range(
             len(dataframe)
@@ -737,7 +808,8 @@ def create_stockout_risk_chart(stockout_products):
 
         product_labels = (
             dataframe["product_name"]
-            if "product_name" in dataframe.columns
+            if "product_name"
+            in dataframe.columns
             else dataframe["product_id"]
         )
 
@@ -751,8 +823,13 @@ def create_stockout_risk_chart(stockout_products):
             "Current Stock vs Reorder Level"
         )
 
-        plt.xlabel("Quantity")
-        plt.ylabel("Product")
+        plt.xlabel(
+            "Quantity"
+        )
+
+        plt.ylabel(
+            "Product"
+        )
 
         plt.legend()
 
@@ -773,13 +850,13 @@ def create_stockout_risk_chart(stockout_products):
         return output_path
 
     # --------------------------------------------------------
-    # Case 2:
-    # Current SQL returns branch-level stockout risk.
+    # Case 2: Branch-level stockout risk
     # --------------------------------------------------------
 
     if (
         "branch_name" in dataframe.columns
-        and "stockout_risk_products"
+        and
+        "stockout_risk_products"
         in dataframe.columns
     ):
 
@@ -808,7 +885,9 @@ def create_stockout_risk_chart(stockout_products):
 
         dataframe = dataframe.tail(10)
 
-        plt.figure(figsize=(10, 7))
+        plt.figure(
+            figsize=(10, 7)
+        )
 
         plt.barh(
             dataframe["branch_name"],
@@ -825,7 +904,9 @@ def create_stockout_risk_chart(stockout_products):
             "Number of Stockout-Risk Products"
         )
 
-        plt.ylabel("Branch")
+        plt.ylabel(
+            "Branch"
+        )
 
         plt.tight_layout()
 
@@ -844,8 +925,7 @@ def create_stockout_risk_chart(stockout_products):
         return output_path
 
     # --------------------------------------------------------
-    # Case 3:
-    # Query returns product-level risk information.
+    # Case 3: Product-level risk
     # --------------------------------------------------------
 
     if "product_name" in dataframe.columns:
@@ -854,11 +934,15 @@ def create_stockout_risk_chart(stockout_products):
             dataframe
             .groupby("product_name")
             .size()
-            .sort_values(ascending=True)
+            .sort_values(
+                ascending=True
+            )
             .tail(10)
         )
 
-        plt.figure(figsize=(10, 7))
+        plt.figure(
+            figsize=(10, 7)
+        )
 
         plt.barh(
             risk_counts.index,
@@ -873,7 +957,9 @@ def create_stockout_risk_chart(stockout_products):
             "Number of At-Risk Records"
         )
 
-        plt.ylabel("Product")
+        plt.ylabel(
+            "Product"
+        )
 
         plt.tight_layout()
 
@@ -892,11 +978,12 @@ def create_stockout_risk_chart(stockout_products):
         return output_path
 
     # --------------------------------------------------------
-    # Case 4:
-    # Generic fallback.
+    # Case 4: Generic fallback
     # --------------------------------------------------------
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(
+        figsize=(10, 6)
+    )
 
     plt.bar(
         ["At-Risk Records"],
@@ -932,7 +1019,9 @@ def create_stockout_risk_chart(stockout_products):
 # Generate all charts
 # ============================================================
 
-def create_charts(results):
+def create_charts(
+    results,
+):
     """
     Generate all required Matplotlib charts.
     """
@@ -942,34 +1031,44 @@ def create_charts(results):
 
     chart_paths = {}
 
-    chart_paths["daily_revenue"] = (
-        create_daily_revenue_chart(
-            results["daily_sales_trend"]
-        )
+    chart_paths[
+        "daily_revenue"
+    ] = create_daily_revenue_chart(
+        results[
+            "daily_sales_trend"
+        ]
     )
 
-    chart_paths["top_10_products"] = (
-        create_top_products_chart(
-            results["top_10_products"]
-        )
+    chart_paths[
+        "top_10_products"
+    ] = create_top_products_chart(
+        results[
+            "top_10_products"
+        ]
     )
 
-    chart_paths["revenue_by_branch"] = (
-        create_branch_revenue_chart(
-            results["top_10_branches"]
-        )
+    chart_paths[
+        "revenue_by_branch"
+    ] = create_branch_revenue_chart(
+        results[
+            "top_10_branches"
+        ]
     )
 
-    chart_paths["category_gross_margin"] = (
-        create_category_margin_chart(
-            results["category_profitability"]
-        )
+    chart_paths[
+        "category_gross_margin"
+    ] = create_category_margin_chart(
+        results[
+            "category_profitability"
+        ]
     )
 
-    chart_paths["stockout_risk"] = (
-        create_stockout_risk_chart(
-            results["stockout_risk_products"]
-        )
+    chart_paths[
+        "stockout_risk"
+    ] = create_stockout_risk_chart(
+        results[
+            "stockout_risk_products"
+        ]
     )
 
     return chart_paths
@@ -990,7 +1089,10 @@ def _to_float(value):
     try:
         return float(value)
 
-    except (TypeError, ValueError):
+    except (
+        TypeError,
+        ValueError,
+    ):
         return 0.0
 
 
@@ -1005,7 +1107,10 @@ def _to_int(value):
     try:
         return int(value)
 
-    except (TypeError, ValueError):
+    except (
+        TypeError,
+        ValueError,
+    ):
         return 0
 
 
@@ -1023,12 +1128,20 @@ def create_summary_report(
     """
 
     if results is None:
-        results = run_reports(conn)
+
+        results = run_reports(
+            conn
+        )
 
     if chart_paths is None:
-        chart_paths = create_charts(results)
 
-    kpis = get_kpis(conn)
+        chart_paths = create_charts(
+            results
+        )
+
+    kpis = get_kpis(
+        conn
+    )
 
     # --------------------------------------------------------
     # DataFrames
@@ -1070,7 +1183,9 @@ def create_summary_report(
 
     if not category_sales.empty:
 
-        category_sales = category_sales.copy()
+        category_sales = (
+            category_sales.copy()
+        )
 
         revenue_column = (
             "net_revenue"
@@ -1090,7 +1205,9 @@ def create_summary_report(
 
         category_sales = (
             category_sales.dropna(
-                subset=[revenue_column]
+                subset=[
+                    revenue_column
+                ]
             )
         )
 
@@ -1332,7 +1449,9 @@ def create_summary_report(
 
     if not daily_sales.empty:
 
-        daily_sales = daily_sales.copy()
+        daily_sales = (
+            daily_sales.copy()
+        )
 
         if (
             "total_revenue"
@@ -1561,7 +1680,8 @@ generating **${top_category_revenue:,.2f}** in net revenue.
 
         revenue_column = (
             "net_revenue"
-            if "net_revenue" in category_sales.columns
+            if "net_revenue"
+            in category_sales.columns
             else "total_revenue"
         )
 
@@ -1571,7 +1691,8 @@ generating **${top_category_revenue:,.2f}** in net revenue.
                 _to_float(
                     row["gross_profit"]
                 )
-                if "gross_profit" in category_sales.columns
+                if "gross_profit"
+                in category_sales.columns
                 else 0.0
             )
 
@@ -1763,7 +1884,8 @@ for replenishment.
     if not stockout_products.empty:
 
         if (
-            "branch_name" in stockout_products.columns
+            "branch_name"
+            in stockout_products.columns
             and
             "stockout_risk_products"
             in stockout_products.columns
@@ -1782,7 +1904,10 @@ for replenishment.
                     f"{count:,} |\n"
                 )
 
-        elif "product_name" in stockout_products.columns:
+        elif (
+            "product_name"
+            in stockout_products.columns
+        ):
 
             for _, row in (
                 stockout_products
@@ -1932,7 +2057,9 @@ def run_all_reports(conn):
     # 1. SQL analytical reports
     # --------------------------------------------------------
 
-    results = run_reports(conn)
+    results = run_reports(
+        conn
+    )
 
     # --------------------------------------------------------
     # 2. Charts
@@ -1970,4 +2097,6 @@ def run_reports_and_summary(conn):
     Runs reports, charts, and summary.
     """
 
-    return run_all_reports(conn)
+    return run_all_reports(
+        conn
+    )

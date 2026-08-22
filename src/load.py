@@ -4,8 +4,6 @@ import pandas as pd
 import psycopg2
 from psycopg2 import extras
 
-from config import DATABASE_URL
-
 
 # ============================================================
 # Project paths

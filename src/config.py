@@ -1,5 +1,4 @@
 from pathlib import Path
-
 import os
 
 from dotenv import load_dotenv
@@ -38,6 +37,47 @@ PROCESSED_DIR = (
 REJECTED_DIR = (
     PROCESSED_DIR
     / "rejected_records"
+)
+
+REPORTS_DIR = (
+    BASE_DIR
+    / "reports"
+)
+
+CHARTS_DIR = (
+    REPORTS_DIR
+    / "charts"
+)
+
+ANALYSIS_QUERIES_PATH = (
+    BASE_DIR
+    / "sql"
+    / "03_analysis_queries.sql"
+)
+
+
+# ============================================================
+# Create required directories
+# ============================================================
+
+PROCESSED_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+REJECTED_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+REPORTS_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+CHARTS_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
 )
 
 

@@ -1,33 +1,8 @@
-from pathlib import Path
-
 import pandas as pd
 
-
-# ============================================================
-# Project paths
-# ============================================================
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-PROCESSED_DIR = (
-    BASE_DIR
-    / "data"
-    / "processed"
-)
-
-REJECTED_DIR = (
-    PROCESSED_DIR
-    / "rejected_records"
-)
-
-PROCESSED_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
-
-REJECTED_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
+from config import (
+    PROCESSED_DIR,
+    REJECTED_DIR,
 )
 
 
@@ -368,16 +343,12 @@ def save_processed_outputs(
         "dim_customers.csv": dim_customers,
         "dim_branches.csv": dim_branches,
         "fact_sales.csv": fact_sales,
-        "fact_inventory_snapshot.csv":
-            fact_inventory_snapshot,
+        "fact_inventory_snapshot.csv": fact_inventory_snapshot,
     }
 
     for filename, dataframe in outputs.items():
 
-        path = (
-            PROCESSED_DIR
-            / filename
-        )
+        path = PROCESSED_DIR / filename
 
         dataframe.to_csv(
             path,
@@ -1084,8 +1055,7 @@ def transform_data(dataframe):
 
     fact_sales = fact_sales.rename(
         columns={
-            "margin_percent":
-                "margin_percentage",
+            "margin_percent": "margin_percentage",
         }
     )
 
@@ -1276,34 +1246,24 @@ def transform_data(dataframe):
     # Convert missing values
     # ========================================================
 
-    dim_categories = (
-        convert_missing_values(
-            dim_categories
-        )
+    dim_categories = convert_missing_values(
+        dim_categories
     )
 
-    dim_products = (
-        convert_missing_values(
-            dim_products
-        )
+    dim_products = convert_missing_values(
+        dim_products
     )
 
-    dim_customers = (
-        convert_missing_values(
-            dim_customers
-        )
+    dim_customers = convert_missing_values(
+        dim_customers
     )
 
-    dim_branches = (
-        convert_missing_values(
-            dim_branches
-        )
+    dim_branches = convert_missing_values(
+        dim_branches
     )
 
-    fact_sales = (
-        convert_missing_values(
-            fact_sales
-        )
+    fact_sales = convert_missing_values(
+        fact_sales
     )
 
     fact_inventory_snapshot = (
@@ -1312,10 +1272,8 @@ def transform_data(dataframe):
         )
     )
 
-    rejected = (
-        convert_missing_values(
-            rejected
-        )
+    rejected = convert_missing_values(
+        rejected
     )
 
     # ========================================================
@@ -1430,7 +1388,8 @@ def transform_data(dataframe):
         "dim_customers": dim_customers,
         "dim_branches": dim_branches,
         "fact_sales": fact_sales,
-        "fact_inventory_snapshot":
-            fact_inventory_snapshot,
+        "fact_inventory_snapshot": (
+            fact_inventory_snapshot
+        ),
         "rejected": rejected,
     }
